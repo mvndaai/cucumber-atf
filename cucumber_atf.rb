@@ -301,4 +301,3 @@ end
 def time
   Time.now.to_s[0...-6].gsub(' ','_')
 end
-
