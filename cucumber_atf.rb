@@ -13,12 +13,10 @@
 # -------------------------------------------------------------
 
 ## Fill in to skip questions
-#@project_directory = '/home/mavanj/bus-web-auto-test/'
-@project_directory = '/Users/mavanj/StashNext/bus_automation/automation/bus-web-auto-test/'
-@log_folder_name = 'log'
-@tag_prefixes_to_run = ['@TC.']
-@tags_to_skip = ['qa5','@phoenix','@aria']
-@tags = ['@TC.10491']
+@project_directory #string
+@log_folder_name #string
+@tag_prefixes_to_run #array
+@tags_to_skip #array
 
 END {
   setup
