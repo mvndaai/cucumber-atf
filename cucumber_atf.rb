@@ -101,6 +101,7 @@ def create_log_folder
   Dir::mkdir(@log_directory)
   #puts @log_directory
 end
+def name_log_files
   summary = "atf-summary.txt"
   failure = "atf-fail-#{time}.txt"
   @summary_log_path = File.join(@log_directory,summary)
