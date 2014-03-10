@@ -145,7 +145,7 @@ def parse_summary_lines
   
   line_array.each_with_index do |item,index|
     item.each_line do |line|
-      item = line.strip.gsub(']','').gsub('"','').split('[')[1]
+      item = line.strip.gsub(']','').gsub('"','').gsub(' ','').split('[')[1]
       item = item.split(',')if line.include? ','      
       array[index] << item 
       array[index] = array[index].flatten.uniq  
