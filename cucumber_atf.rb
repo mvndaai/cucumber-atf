@@ -2,8 +2,8 @@
 # Cucumber Automation Test Framework
 # Created by Jason Mavandi
 # mvndaai@gmail.com
-# Updated Mar 6, 2013
-# Verion 0.2.0 
+# Updated Mar 9, 2013
+# Verion 0.2.1 
 # -------------------------------------------------------------
 
 # -------------------------------------------------------------
@@ -13,32 +13,34 @@
 # -------------------------------------------------------------
 
 ## Fill in to skip questions
-@project_directory #string
-@log_folder_name #string
-@tag_prefixes_to_run #array
-@tags_to_skip #array
+@project_directory
+@log_folder_name
+@tag_prefixes_to_run
+@tags_to_skip
 
 END {
   setup
-  collect_tags_from_directory
   run_tags
 }
 
 # Setup 
 def setup
+  @question_repeat = 3
   @os_windows = (/cygwin|mswin|mingw|bccwin|wince|emx/ =~ RUBY_PLATFORM) != nil
   @os_mac = (/darwin/ =~ RUBY_PLATFORM) != nil
   @os_linux = !@os_windows && !@os_mac
-  
+
   #Ask questions if necessary
   ask_project_directory if @project_directory.nil?
-  #verify_project_directory
+  verify_project_directory
   ask_log_folder_name if @log_folder_name.nil?
-  ask_tag_questions if @tag_prefixes_to_run.nil?
   
   #Create log folder/files
   create_log_folder
   name_log_files
+
+  ask_tag_questions if @tag_prefixes_to_run.nil? unless re_run_non_passed?
+  collect_tags_from_directory
 end
 def ask_project_directory
   print "What is the directory of your cucumber project: "
@@ -46,32 +48,50 @@ def ask_project_directory
   #puts @project_directory
 end
 def verify_project_directory
-  loop do
+  @question_repeat.times do
     dir = @project_directory
     @project_directory = dir.gsub('~/',"/Users/#{`whoami`.chomp}/") if dir.start_with?('~/')  if @os_mac
     @project_directory = dir.gsub('~/',"/home/#{`whoami`.chomp}/") if dir.start_with?('~/')  if @os_linux 
     break if File.directory?(@project_directory)
     puts "The cucumber directory listed below does not exists, please try again"
     puts "  '#{@project_directory}'"
+    directory_help
     ask_project_directory
   end
+end
+def directory_help
+  unless @windows
+    array = @project_directory.split('/')
+    array.each.with_index do |item,index|
+      next if index == 0
+      dir = array[0,index + 1].join('/')
+      
+      unless File.directory?(dir)
+        dir = array[0,index].join('/')
+        puts "Valid folders in path #{dir}:"
+        puts `cd #{dir}; ls`        
+        break
+      end
+    end
+  end
+  
 end
 def ask_log_folder_name
   print "Name a log folder(default 'log'): "
   @log_folder_name = STDIN.gets.chomp.strip
   @log_folder_name = 'log' if @log_folder_name == ''
   #puts @log_folder_name
-end
+end 
 def ask_tag_questions
   print "List important starts of tags, separated by commas (Starting with @): "
   @tag_prefixes_to_run = question_separated_by_commas
-  print "#{@tag_prefixes_to_run}\n"
+  #print "#{@tag_prefixes_to_run}\n"
   if @tags_to_skip.nil?
     print "Are there any tags you would like to skip?(y/n): "
     if question_yes_no
       print 'List tags to skip separated by commas: '
       @tags_to_skip = question_separated_by_commas
-      print "#{@tags_to_skip}\n"
+      #print "#{@tags_to_skip}\n"
     end
   end
 end
@@ -84,14 +104,67 @@ end
 def name_log_files
   summary = "atf-summary.txt"
   failure = "atf-fail-#{time}.txt"
-  @summary_log_name = File.join(@log_directory,summary)
-  @failure_log_name = File.join(@log_directory,failure)
-  #File.open(@summary_log, 'w') {|f| f.write("Start at #{Time.now}") }
+  @summary_log_path = File.join(@log_directory,summary)
+  @failure_log_path = File.join(@log_directory,failure)
+end
+def re_run_non_passed?
+  history = get_tags_from_last_summary
+  unless history.any? #If never run or all tests were previously passed
+    archive_last_summary
+    return false 
+  end
+  print "Would you like to rerun the #{history.length} unpassed tags?(y/n): "
+  response = question_yes_no
+  
+  if response
+    @tags = history
+  else
+    archive_last_summary
+  end
+  
+  return response
+end
+
+#Previous Summary
+def get_tags_from_last_summary
+  return [] unless File.exists? @summary_log_path 
+  File.open(@summary_log_path, 'r') {|f| @old_summary = f.read }
+  parsed = parse_summary_lines
+  non_passed = parsed[0] - parsed [1]
+  failed = parsed[2] - parsed[1]
+  non_passed_failed_last = non_passed - failed + failed
+  non_passed_failed_last
+end
+def parse_summary_lines
+  array, line_array = [[],[],[]] , ['','','']
+  
+  @old_summary.each_line do |line|
+    line_array[0] += line if line.start_with? 'Scheduled'
+    line_array[1] += line if line.start_with? 'Passed'
+    line_array[2] += line if line.start_with? 'Failed'
+  end
+  
+  line_array.each_with_index do |item,index|
+    item.each_line do |line|
+      item = line.strip.gsub(']','').gsub('"','').split('[')[1]
+      item = item.split(',')if line.include? ','      
+      array[index] << item 
+      array[index] = array[index].flatten.uniq  
+    end
+  end
+  array  
+end
+def archive_last_summary
+  archive_name = "atf-summary_before-#{time}.txt"
+  if File.exists? @summary_log_path
+    File.open(File.join(@log_directory,archive_name), 'w') {|f| f.write(@old_summary)} 
+    File.delete(@summary_log_path)
+  end
 end
 
 #Gather tags from feature files
 def collect_tags_from_directory
-  return if @tags.any? if !!@tags #Hack to let you force tags instead of searching
+  return if @tags.any? if !!@tags #skip if collected from summary
   @tags = []
   features = find_feature_files(File.join(@project_directory,'features',''))
   features.each do |feature|
@@ -139,12 +212,9 @@ def get_feature_tag_lines(feature)
 end
 def get_tags_from_lines(tag_lines)
   important = []
-  #puts "\n\n#{tag_lines}"
   tag_lines.each do |line|
-    #puts line
     line.split(' ').each do |tag|
       @tag_prefixes_to_run.each do |prefix|
-        #puts "#{prefix} - #{tag}"
         important << tag if tag.include? prefix  
       end
     end
@@ -157,23 +227,23 @@ end
 def run_tags
   total = @tags.length
   puts "Running #{total} test case#{total == 1 ? '' : 's'}"
-  pass,fail = [],[]
+  @pass,@fail = [],[]
   @tags.each.with_index do |tag,index|
     puts "Executing #{tag} (#{index+1} of #{total})"
     log = launch_cucumber(tag)
     result = cucumber_passed?(log)
     if result #True if passed
-      pass << tag
+      @pass << tag
     else
-      fail << tag
+      @fail << tag
       log_failure(tag,log)      
     end
     string = "-- #{result ? "\e[32mPassed\e[0m" : "\e[31mFailed\e[0m"} at #{time}"
-    string += " (#{pass.length} passed, #{fail.length} failed)\n" 
+    string += " (#{@pass.length} passed, #{@fail.length} failed)\n" 
     puts string
-    update_summary(tag) 
+    update_summary
   end
-  puts "Done! Totals:#{pass.length} passed, #{fail.length} failed.\n\n"
+  puts "Done! Totals:#{@pass.length} passed, #{@fail.length} failed.\n\n"
   puts @fail_heatmap
 end
 def launch_cucumber(tag)
@@ -191,7 +261,7 @@ def log_failure(tag,log)
   #Catch multipule scenario failures
   #-Split log by @ begining of stripped line
   
-  File.open(@failure_log_name, 'w') {|f| f.write(save) } 
+  File.open(@failure_log_path, 'w') {|f| f.write(save) } 
 end
 def parse_failure(tag,log)
   #Note bash printouts have color they start with a [#m and end with [0m
@@ -263,8 +333,18 @@ def add_fail_description(array_of_hashes)
   end
   @fail_tail
 end
+def update_summary
+  @start_time ||= Time.now
+  @old_summary ||= ''
+  @old_summear += "\n" unless @old_summary == ''
 
-def update_summary(tag)
+  string = @old_summary
+  string += "Started at #{@start_time}\n"
+  string += "Scheduled: #{@tags}\n"
+  string += "Passed: #{@pass}\n"
+  string += "Failed: #{@fail}\n"
+  
+  File.open(@summary_log_path, 'w') {|f| f.write(string) }
 end
 
 #Generic Helpers
@@ -277,7 +357,7 @@ def combine_arrays(array_a,array_b)
   array_a.uniq!
 end
 def question_yes_no
-  loop do
+  @question_repeat.times do
     responce = STDIN.gets.chomp.strip.downcase
     boolean = responce == 'y' || responce == 'n' || responce == 'yes' || responce == 'no'
     if boolean
@@ -286,13 +366,15 @@ def question_yes_no
     end
     print "Please respond with (y)es or (n)o: "
   end
+  print "\n";abort
 end
 def question_not_blank
-  loop do
+  @question_repeat.times do
     responce =  STDIN.gets.chomp.strip
     return responce if responce != ''
     print 'Please type something: '
   end
+  print "\n";abort
 end
 def question_separated_by_commas
   split_and_strip(question_not_blank,',')
