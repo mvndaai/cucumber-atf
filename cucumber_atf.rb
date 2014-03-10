@@ -50,8 +50,10 @@ end
 def verify_project_directory
   @question_repeat.times do
     dir = @project_directory
-    @project_directory = dir.gsub('~/',"/Users/#{`whoami`.chomp}/") if dir.start_with?('~/')  if @os_mac
-    @project_directory = dir.gsub('~/',"/home/#{`whoami`.chomp}/") if dir.start_with?('~/')  if @os_linux 
+    if dir.start_with?('~/')
+      @project_directory = dir.gsub('~/',"/Users/#{`whoami`.chomp}/") if @os_mac
+      @project_directory = dir.gsub('~/',"/home/#{`whoami`.chomp}/")  if @os_linux 
+    end
     break if File.directory?(@project_directory)
     puts "The cucumber directory listed below does not exists, please try again"
     puts "  '#{@project_directory}'"
