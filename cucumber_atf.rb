@@ -101,7 +101,6 @@ def create_log_folder
   Dir::mkdir(@log_directory)
   #puts @log_directory
 end
-def name_log_files
   summary = "atf-summary.txt"
   failure = "atf-fail-#{time}.txt"
   @summary_log_path = File.join(@log_directory,summary)
@@ -336,10 +335,9 @@ end
 def update_summary
   @start_time ||= Time.now
   @old_summary ||= ''
-  @old_summear += "\n" unless @old_summary == ''
 
   string = @old_summary
-  string += "Started at #{@start_time}\n"
+  string += "\n\nStarted at #{@start_time}\n"
   string += "Scheduled: #{@tags}\n"
   string += "Passed: #{@pass}\n"
   string += "Failed: #{@fail}\n"
