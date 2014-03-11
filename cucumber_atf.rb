@@ -17,6 +17,7 @@
 @log_folder_name
 @tag_prefixes_to_run
 @tags_to_skip
+@generic_heatmap
 
 END {
   setup
@@ -41,6 +42,7 @@ def setup
 
   ask_tag_questions if @tag_prefixes_to_run.nil? unless re_run_non_passed?
   collect_tags_from_directory
+  ask_generic_heatmap if @generic_heatmap.nil?
 end
 def ask_project_directory
   print "What is the directory of your cucumber project: "
@@ -96,6 +98,10 @@ def ask_tag_questions
       #print "#{@tags_to_skip}\n"
     end
   end
+end
+def ask_generic_heatmap
+  print "Do you want the steps in the summary generalized?(y/n): "
+  @generic_heatmap = question_yes_no
 end
 def create_log_folder
   @log_directory = File.join(@project_directory,@log_folder_name)
@@ -160,6 +166,7 @@ def archive_last_summary
   archive_name = "atf-summary_before-#{time}.txt"
   if File.exists? @summary_log_path
     File.open(File.join(@log_directory,archive_name), 'w') {|f| f.write(@old_summary)} 
+    @old_summary = ''
     File.delete(@summary_log_path)
   end
 end
@@ -260,37 +267,48 @@ def log_failure(tag,log)
   save = update_failure_heatmap(parsed)
   save += add_fail_description(parsed)
   
-  #Catch multipule scenario failures
-  #-Split log by @ begining of stripped line
-  
   File.open(@failure_log_path, 'w') {|f| f.write(save) } 
 end
 def parse_failure(tag,log)
-  #Note bash printouts have color they start with a [#m and end with [0m
-  # [31m is red, [90m is gray
-  
   failure_array = []
   log = log.split(tag) #Catches multipule scenarios with one tag
-  log.each.with_index do |scenario,index|
-    next if index == 0 #Skip First
-    red_lines = '' 
-    scenario.each_line do |line|
-      line = line.lstrip.gsub('\e','')
-      red_lines += line if line[0,6].include?("[31m") #Starts with red
+  if has_red_lines?(log[0])
+    failure_array << fail_to_hash(log.join(tag),tag)
+  else
+    log.each.with_index do |scenario,index|
+      next if index == 0 #Skip First
+      failure_array << fail_to_hash(scenario,tag) if has_red_lines?(scenario)
     end
-    next if red_lines == ''
-    
-    red_lines = remove_bash_colors(red_lines).split('Failing Scenarios:')
-    failure = Hash.new
-    failure['scenario'] = red_lines[1].split('common ')[1]
-    failure['step'] = red_lines[0].split('\n')[-1]
-    failure['tag'] = tag    
-        
-    failure_array << failure
   end
-  #puts failure_array
-  failure_array
+  failure_array    
 end  
+def has_red_lines?(str)
+  #Note bash printouts have color they start with a [#m and end with [0m (31:red, 90:gray)
+  str.include?('[31m')
+end
+def fail_to_hash(str,tag)
+  str = extact_red_line(str) 
+  return nil if str == ''
+  str = remove_bash_colors(str)
+  red_lines_to_hash(str,tag)
+end
+def extact_red_line(str)
+  red_lines = '' 
+  str.each_line do |line|
+    red_lines += line if line[0,6].include?('[31m') #Starts with red
+  end
+  red_lines
+end
+def red_lines_to_hash(str,tag)
+  str = str.split('Failing Scenarios:')
+  failure = Hash.new
+  failure['scenario'] = str[1].split('common ')[1]
+  failure['error'] = str[0].split('\n')[-1]
+  failure['step'] = extract_step(failure['error'])
+  failure['tag'] = tag    
+  failure
+end
+
 def remove_bash_colors(string)
   remove_characters(string,['[0m','[1m','[90m','[36m','[32m','[31m',"\e"])
 end
@@ -301,7 +319,7 @@ end
 def update_failure_heatmap(array_of_hashes)
   @failure_heatmap_hash ||= Hash.new
   array_of_hashes.each do |hash|
-    step = extract_step(hash['step'])
+    step = hash['step']
     if @failure_heatmap_hash[step].nil?
       @failure_heatmap_hash[step] = 1
     else
@@ -325,25 +343,29 @@ def update_failure_heatmap(array_of_hashes)
   @fail_heatmap
 end
 def extract_step(str)
-  return nil if str.nil?
-  str = str.split("\n")[-1].split('in `')[1].strip
-  if str.start_with?('*')
-    str = str[2,str.length+1]
-  elsif str.start_with?('Given')
-    str = str[6,str.length+1]
-  elsif (str.start_with?('When') || str.start_with?('Then'))
-    str = str[5,str.length+1]
-  elsif (str.start_with?('And') || str.start_with?('But')) 
-    str = str[4,str.length+1]
+  if @generic_heatmap
+    return str.split('/^')[1].split('$/')[0]
+  else
+    str = str.split("\n")[-1].split('in `')[1].strip
+    if str.start_with?('*')
+      str = str[2,str.length+1]
+    elsif str.start_with?('Given')
+      str = str[6,str.length+1]
+    elsif (str.start_with?('When') || str.start_with?('Then'))
+      str = str[5,str.length+1]
+    elsif (str.start_with?('And') || str.start_with?('But')) 
+      str = str[4,str.length+1]
+    end
+    return  "'#{str}"
+    #TODO Currently return 'step' will remove '' if I can figure out how to remove it at the end and not ones in the middle.
   end
-  "'#{str}"
 end
 def add_fail_description(array_of_hashes)
   @fail_tail ||= "\n\nFailure Logs:\n"
   array_of_hashes.each do |hash|
     @fail_tail += "Code ran: bundle exec cucumber -t #{hash['tag']}\n"
     @fail_tail += "Failure location: #{hash['scenario']}"
-    @fail_tail += "#{hash['step']}\n\n"
+    @fail_tail += "#{hash['error']}\n\n"
   end
   @fail_tail
 end
