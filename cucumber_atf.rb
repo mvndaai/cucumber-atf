@@ -301,8 +301,7 @@ end
 def update_failure_heatmap(array_of_hashes)
   @failure_heatmap_hash ||= Hash.new
   array_of_hashes.each do |hash|
-    step = hash['step'].split("\n")[-1].split('in `')[1].strip
-    #TODO figure out how to remove the ' at the end
+    step = extract_step(hash['step'])
     if @failure_heatmap_hash[step].nil?
       @failure_heatmap_hash[step] = 1
     else
@@ -323,8 +322,21 @@ def update_failure_heatmap(array_of_hashes)
     @fail_heatmap += "| #{v.to_s.rjust(5)} | #{k.to_s.ljust(longest_string)} |\n"  
   end
   @fail_heatmap += line
-  #puts string
   @fail_heatmap
+end
+def extract_step(str)
+  return nil if str.nil?
+  str = str.split("\n")[-1].split('in `')[1].strip
+  if str.start_with?('*')
+    str = str[2,str.length+1]
+  elsif str.start_with?('Given')
+    str = str[6,str.length+1]
+  elsif (str.start_with?('When') || str.start_with?('Then'))
+    str = str[5,str.length+1]
+  elsif (str.start_with?('And') || str.start_with?('But')) 
+    str = str[4,str.length+1]
+  end
+  "'#{str}"
 end
 def add_fail_description(array_of_hashes)
   @fail_tail ||= "\n\nFailure Logs:\n"
