@@ -162,12 +162,13 @@ class Dillify
     #puts @tags.length
   end
   def find_feature_files(folder)
-    feature_files = []
-    feature_files << Dir.glob("#{folder}*.feature")
+    @feature_files ||= []
+    @feature_files << Dir.glob("#{folder}*.feature")
     Dir.glob("#{File.join(folder,'*','')}").each do |sub_folder|
       find_feature_files(sub_folder)
     end
-    feature_files.flatten!
+    @feature_files.flatten!
+    @feature_files
   end
   def scan_features_for_tags(feature)
     tag_lines = get_feature_tag_lines(feature)
