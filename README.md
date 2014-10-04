@@ -21,7 +21,7 @@ Save output from cucumber
 
     $ cucumber --out ./log.txt
 
-Use dillify on your log
+Use dillify on your output
 
     $ dillify ./log.txt
 
