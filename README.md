@@ -19,11 +19,11 @@ Example output:
 
 Save output from cucumber
 
-  $ cucumber --out ./log.txt
+    $ cucumber --out ./log.txt
 
 Use dillify on your log
 
-  $ dillify ./log.txt
+    $ dillify ./log.txt
 
 ## Contributing
 
