@@ -8,8 +8,8 @@ Gem::Specification.new do |spec|
   spec.version       = Dillify::VERSION
   spec.authors       = ["Jason Mavandi"]
   spec.email         = ["mvndaai@gmail.com"]
-  spec.description   = %q{Dillify runs cucumber test and generates reports}
-  spec.summary       = %q{Dillify can run multiple tests based on tags in cucumber and generate useful reports of failures.}
+  spec.description   = %q{Failure parser for cucumber out files}
+  spec.summary       = %q{Displays cucumber failing scenarios in order of most failures}
   spec.homepage      = "https://github.com/mvndaai/dillify"
   spec.license       = "MIT"
 

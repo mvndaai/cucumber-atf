@@ -1,24 +1,29 @@
 # Dillify
 
-TODO: Write a gem description
+Dillify shows your failing cucumber scenarios in order of most failing
+
+Example output:
+
+    | Failures | Step
+    -------------------
+    |      3   | math (.+) (.+) (.+)
+    |      1   | run fail automatically step
+    -------------------
+    Total Failures: 4
 
 ## Installation
-
-Add this line to your application's Gemfile:
-
-    gem 'dillify'
-
-And then execute:
-
-    $ bundle
-
-Or install it yourself as:
 
     $ gem install dillify
 
 ## Usage
 
-TODO: Write usage instructions here
+Save output from cucumber
+
+  $ cucumber --out ./log.txt
+
+Use dillify on your log
+
+  $ dillify ./log.txt
 
 ## Contributing
 
